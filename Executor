@@ -1,35 +1,52 @@
 --[[
-    UNIVERSAL SS HUB
-    Version 1.0
-    Single-file Client
+    UNIVERSAL SS HUB v2.0
+    ServerSide Access Scanner
+    Client + Server Command Hub
+
+    Compatible with Roblox Luau
 ]]
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
-local RemoteFolder = ReplicatedStorage:FindFirstChild("UniversalSS")
-local Remote = RemoteFolder and RemoteFolder:FindFirstChild("ExecuteRemote")
+local CONFIG = {
+    Name = "UNIVERSAL SS HUB",
+    Version = "2.0",
 
-local Old = PlayerGui:FindFirstChild("UniversalSSHub")
-
-if Old then
-    Old:Destroy()
-end
-
-local Colors = {
-    Background = Color3.fromRGB(15, 15, 22),
-    Secondary = Color3.fromRGB(25, 25, 36),
+    Background = Color3.fromRGB(14, 14, 21),
+    Secondary = Color3.fromRGB(24, 24, 35),
     Accent = Color3.fromRGB(135, 85, 255),
-    Text = Color3.fromRGB(240, 240, 255),
-    Muted = Color3.fromRGB(150, 150, 170)
+
+    Success = Color3.fromRGB(65, 210, 125),
+    Error = Color3.fromRGB(240, 75, 95),
+    Warning = Color3.fromRGB(255, 190, 70),
+
+    Text = Color3.fromRGB(240, 240, 255)
 }
 
-local Mode = "Client"
+local State = {
+    Mode = "Client",
+    ServerAvailable = false,
+    Authorized = false,
+    Remote = nil,
+    RequestId = 0,
+    Pending = {}
+}
+
+-- GUI CLEANUP
+
+local old = PlayerGui:FindFirstChild("UniversalSSHub")
+
+if old then
+    old:Destroy()
+end
+
+-- GUI
 
 local GUI = Instance.new("ScreenGui")
 GUI.Name = "UniversalSSHub"
@@ -38,123 +55,146 @@ GUI.IgnoreGuiInset = true
 GUI.Parent = PlayerGui
 
 local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.fromOffset(550, 380)
+Main.Size = UDim2.fromOffset(560, 430)
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.Position = UDim2.fromScale(0.5, 0.5)
-Main.BackgroundColor3 = Colors.Background
+Main.BackgroundColor3 = CONFIG.Background
 Main.BorderSizePixel = 0
 Main.Parent = GUI
 
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
 
 local Stroke = Instance.new("UIStroke")
-Stroke.Color = Colors.Accent
-Stroke.Transparency = 0.5
+Stroke.Color = CONFIG.Accent
+Stroke.Transparency = 0.45
 Stroke.Parent = Main
 
-local Constraint = Instance.new("UISizeConstraint")
-Constraint.MinSize = Vector2.new(260, 240)
-Constraint.MaxSize = Vector2.new(550, 380)
-Constraint.Parent = Main
+local function MakeLabel(parent, text, position, size, color, fontSize)
+    local label = Instance.new("TextLabel")
 
-local function Resize()
-    local viewport = workspace.CurrentCamera.ViewportSize
+    label.Position = position
+    label.Size = size
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = fontSize or 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
 
-    Main.Size = UDim2.fromOffset(
-        math.min(550, viewport.X - 20),
-        math.min(380, viewport.Y - 40)
-    )
+    return label
 end
 
-Resize()
+local function MakeButton(parent, text, position, size, color)
+    local button = Instance.new("TextButton")
 
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(Resize)
+    button.Position = position
+    button.Size = size
+    button.BackgroundColor3 = color
+    button.Text = text
+    button.TextColor3 = CONFIG.Text
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 12
+    button.BorderSizePixel = 0
+    button.Parent = parent
 
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 48)
-Header.BackgroundTransparency = 1
-Header.Parent = Main
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -160, 1, 0)
-Title.Position = UDim2.fromOffset(15, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "UNIVERSAL SS HUB"
-Title.TextColor3 = Colors.Text
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Header
-
-local function Button(parent, text, position, size, color)
-    local b = Instance.new("TextButton")
-
-    b.Size = size
-    b.Position = position
-    b.BackgroundColor3 = color
-    b.Text = text
-    b.TextColor3 = Colors.Text
-    b.TextSize = 13
-    b.Font = Enum.Font.GothamBold
-    b.BorderSizePixel = 0
-    b.Parent = parent
-
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-
-    b.MouseEnter:Connect(function()
+    button.MouseEnter:Connect(function()
         TweenService:Create(
-            b,
+            button,
             TweenInfo.new(0.15),
             {BackgroundTransparency = 0.2}
         ):Play()
     end)
 
-    b.MouseLeave:Connect(function()
+    button.MouseLeave:Connect(function()
         TweenService:Create(
-            b,
+            button,
             TweenInfo.new(0.15),
             {BackgroundTransparency = 0}
         ):Play()
     end)
 
-    return b
+    return button
 end
 
-local ModeButton = Button(
+-- HEADER
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundTransparency = 1
+Header.Parent = Main
+
+MakeLabel(
+    Header,
+    CONFIG.Name .. "  v" .. CONFIG.Version,
+    UDim2.fromOffset(15, 0),
+    UDim2.new(1, -180, 1, 0),
+    CONFIG.Text,
+    16
+)
+
+local ModeButton = MakeButton(
     Header,
     "CLIENT",
-    UDim2.new(1, -145, 0, 9),
+    UDim2.new(1, -145, 0, 8),
     UDim2.fromOffset(90, 30),
-    Colors.Secondary
+    CONFIG.Secondary
 )
 
-local XButton = Button(
+local CloseButton = MakeButton(
     Header,
     "X",
-    UDim2.new(1, -45, 0, 9),
+    UDim2.new(1, -45, 0, 8),
     UDim2.fromOffset(32, 30),
-    Color3.fromRGB(180, 55, 75)
+    CONFIG.Error
 )
 
+-- SERVER STATUS
+
+local StatusFrame = Instance.new("Frame")
+StatusFrame.Position = UDim2.fromOffset(15, 50)
+StatusFrame.Size = UDim2.new(1, -30, 0, 60)
+StatusFrame.BackgroundColor3 = CONFIG.Secondary
+StatusFrame.Parent = Main
+
+Instance.new("UICorner", StatusFrame).CornerRadius = UDim.new(0, 9)
+
+local StatusLabel = MakeLabel(
+    StatusFrame,
+    "SS STATUS: NOT SCANNED",
+    UDim2.fromOffset(12, 7),
+    UDim2.new(1, -24, 0, 20),
+    CONFIG.Warning,
+    13
+)
+
+local AccessLabel = MakeLabel(
+    StatusFrame,
+    "SERVER ACCESS: UNKNOWN",
+    UDim2.fromOffset(12, 30),
+    UDim2.new(1, -24, 0, 20),
+    CONFIG.Text,
+    12
+)
+
+-- EDITOR
+
 local EditorFrame = Instance.new("Frame")
-EditorFrame.Size = UDim2.new(1, -30, 1, -125)
-EditorFrame.Position = UDim2.fromOffset(15, 55)
-EditorFrame.BackgroundColor3 = Colors.Secondary
-EditorFrame.BorderSizePixel = 0
+EditorFrame.Position = UDim2.fromOffset(15, 120)
+EditorFrame.Size = UDim2.new(1, -30, 1, -230)
+EditorFrame.BackgroundColor3 = CONFIG.Secondary
 EditorFrame.Parent = Main
 
-Instance.new("UICorner", EditorFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", EditorFrame).CornerRadius = UDim.new(0, 9)
 
 local Editor = Instance.new("TextBox")
-Editor.Name = "Editor"
 Editor.Size = UDim2.new(1, -20, 1, -20)
 Editor.Position = UDim2.fromOffset(10, 10)
 Editor.BackgroundTransparency = 1
-Editor.Text = "-- Universal SS Hub\n-- Commands: heal, speed, normal, jump"
-Editor.TextColor3 = Colors.Text
-Editor.PlaceholderText = "Enter a test command..."
-Editor.PlaceholderColor3 = Colors.Muted
+Editor.Text = "-- Universal SS Hub v2.0\n-- Commands: heal, speed, normal, jump"
+Editor.TextColor3 = CONFIG.Text
 Editor.Font = Enum.Font.Code
 Editor.TextSize = 14
 Editor.TextXAlignment = Enum.TextXAlignment.Left
@@ -164,76 +204,232 @@ Editor.ClearTextOnFocus = false
 Editor.TextWrapped = false
 Editor.Parent = EditorFrame
 
-local Execute = Button(
+-- BUTTONS
+
+local ScanButton = MakeButton(
+    Main,
+    "SCAN SS",
+    UDim2.new(0.025, 0, 1, -100),
+    UDim2.new(0.46, 0, 0, 35),
+    CONFIG.Accent
+)
+
+local CheckButton = MakeButton(
+    Main,
+    "CHECK ACCESS",
+    UDim2.new(0.515, 0, 1, -100),
+    UDim2.new(0.46, 0, 0, 35),
+    CONFIG.Secondary
+)
+
+local ExecuteButton = MakeButton(
     Main,
     "EXECUTE",
     UDim2.new(0.025, 0, 1, -53),
-    UDim2.new(0.235, 0, 0, 38),
-    Colors.Accent
+    UDim2.new(0.3, 0, 0, 38),
+    CONFIG.Accent
 )
 
-local Clear = Button(
+local ClearButton = MakeButton(
     Main,
     "CLEAR",
-    UDim2.new(0.27, 0, 1, -53),
-    UDim2.new(0.235, 0, 0, 38),
-    Colors.Secondary
+    UDim2.new(0.35, 0, 1, -53),
+    UDim2.new(0.3, 0, 0, 38),
+    CONFIG.Secondary
 )
 
-local Copy = Button(
+local CopyButton = MakeButton(
     Main,
     "COPY",
-    UDim2.new(0.515, 0, 1, -53),
-    UDim2.new(0.235, 0, 0, 38),
-    Colors.Secondary
+    UDim2.new(0.675, 0, 1, -53),
+    UDim2.new(0.3, 0, 0, 38),
+    CONFIG.Secondary
 )
 
-local Close = Button(
-    Main,
-    "CLOSE",
-    UDim2.new(0.76, 0, 1, -53),
-    UDim2.new(0.215, 0, 0, 38),
-    Color3.fromRGB(135, 45, 65)
-)
+-- NOTIFICATIONS
 
 local function Notify(message)
-    local Label = Instance.new("TextLabel")
+    print("[Universal SS]", message)
 
-    Label.Size = UDim2.new(0.8, 0, 0, 32)
-    Label.AnchorPoint = Vector2.new(0.5, 0)
-    Label.Position = UDim2.new(0.5, 0, 0, 8)
-    Label.BackgroundColor3 = Colors.Accent
-    Label.Text = message
-    Label.TextColor3 = Colors.Text
-    Label.Font = Enum.Font.Gotham
-    Label.TextSize = 12
-    Label.ZIndex = 10
-    Label.Parent = Main
+    local notification = MakeLabel(
+        Main,
+        message,
+        UDim2.new(0, 15, 1, -145),
+        UDim2.new(1, -30, 0, 20),
+        CONFIG.Warning,
+        12
+    )
 
-    Instance.new("UICorner", Label).CornerRadius = UDim.new(0, 8)
+    notification.TextXAlignment = Enum.TextXAlignment.Center
+    notification.ZIndex = 10
 
     task.delay(2, function()
-        if Label.Parent then
-            TweenService:Create(
-                Label,
-                TweenInfo.new(0.25),
-                {
-                    BackgroundTransparency = 1,
-                    TextTransparency = 1
-                }
-            ):Play()
-
-            task.wait(0.25)
-            Label:Destroy()
+        if notification.Parent then
+            notification:Destroy()
         end
     end)
 end
 
-ModeButton.MouseButton1Click:Connect(function()
-    Mode = Mode == "Client" and "Server" or "Client"
-    ModeButton.Text = string.upper(Mode)
-    Notify(Mode .. " mode")
+-- SERVER SCANNER
+
+local function ScanServer()
+    State.ServerAvailable = false
+    State.Authorized = false
+    State.Remote = nil
+
+    StatusLabel.Text = "SS STATUS: SCANNING..."
+    StatusLabel.TextColor3 = CONFIG.Warning
+
+    AccessLabel.Text = "SERVER ACCESS: UNKNOWN"
+
+    local folder = ReplicatedStorage:FindFirstChild("UniversalSS")
+
+    if not folder then
+        StatusLabel.Text = "SS STATUS: NOT INSTALLED"
+        StatusLabel.TextColor3 = CONFIG.Error
+
+        Notify("Compatible server module not found")
+        return false
+    end
+
+    local remote = folder:FindFirstChild("ExecuteRemote")
+
+    if not remote or not remote:IsA("RemoteEvent") then
+        StatusLabel.Text = "SS STATUS: REMOTE NOT FOUND"
+        StatusLabel.TextColor3 = CONFIG.Error
+
+        Notify("Compatible RemoteEvent not found")
+        return false
+    end
+
+    State.Remote = remote
+    State.ServerAvailable = true
+
+    StatusLabel.Text = "SS STATUS: REMOTE DETECTED"
+    StatusLabel.TextColor3 = CONFIG.Warning
+
+    Notify("Server endpoint detected")
+
+    return true
+end
+
+-- REQUEST / RESPONSE
+
+local function RequestServer(action)
+    if not State.Remote then
+        return false
+    end
+
+    State.RequestId += 1
+
+    local id = State.RequestId
+
+    State.Pending[id] = {
+        Completed = false,
+        Result = nil
+    }
+
+    State.Remote:FireServer({
+        Action = action,
+        RequestId = id
+    })
+
+    local started = os.clock()
+
+    while os.clock() - started < 5 do
+        local request = State.Pending[id]
+
+        if request and request.Completed then
+            local result = request.Result
+
+            State.Pending[id] = nil
+
+            return result
+        end
+
+        task.wait(0.05)
+    end
+
+    State.Pending[id] = nil
+
+    return false
+end
+
+local ConnectedRemote
+
+local function ConnectResponses()
+    if ConnectedRemote then
+        ConnectedRemote:Disconnect()
+        ConnectedRemote = nil
+    end
+
+    if not State.Remote then
+        return
+    end
+
+    ConnectedRemote = State.Remote.OnClientEvent:Connect(function(data)
+        if typeof(data) ~= "table" then
+            return
+        end
+
+        local request = State.Pending[data.RequestId]
+
+        if request then
+            request.Completed = true
+            request.Result = data
+        end
+    end)
+end
+
+-- ACCESS CHECK
+
+local function CheckAccess()
+    if not ScanServer() then
+        return
+    end
+
+    ConnectResponses()
+
+    AccessLabel.Text = "SERVER ACCESS: CHECKING..."
+
+    local response = RequestServer("CheckAccess")
+
+    if not response then
+        AccessLabel.Text = "SERVER ACCESS: NO RESPONSE"
+        AccessLabel.TextColor3 = CONFIG.Error
+
+        Notify("Server did not respond")
+        return
+    end
+
+    if response.Authorized == true then
+        State.Authorized = true
+
+        StatusLabel.Text = "SS STATUS: ONLINE"
+        StatusLabel.TextColor3 = CONFIG.Success
+
+        AccessLabel.Text = "SERVER ACCESS: GRANTED"
+        AccessLabel.TextColor3 = CONFIG.Success
+
+        Notify("Server access granted")
+    else
+        State.Authorized = false
+
+        AccessLabel.Text = "SERVER ACCESS: DENIED"
+        AccessLabel.TextColor3 = CONFIG.Error
+
+        Notify("Server access denied")
+    end
+end
+
+ScanButton.MouseButton1Click:Connect(function()
+    ScanServer()
+    ConnectResponses()
 end)
+
+CheckButton.MouseButton1Click:Connect(CheckAccess)
+
+-- CLIENT COMMANDS
 
 local ClientCommands = {}
 
@@ -274,7 +470,9 @@ ClientCommands.jump = function()
     end
 end
 
-Execute.MouseButton1Click:Connect(function()
+-- EXECUTION
+
+ExecuteButton.MouseButton1Click:Connect(function()
     local command = Editor.Text:match("^%s*(.-)%s*$")
 
     if command == "" then
@@ -282,7 +480,7 @@ Execute.MouseButton1Click:Connect(function()
         return
     end
 
-    if Mode == "Client" then
+    if State.Mode == "Client" then
         local action = ClientCommands[command]
 
         if not action then
@@ -295,49 +493,69 @@ Execute.MouseButton1Click:Connect(function()
         if success then
             Notify("Client command executed")
         else
-            warn("[Universal SS]", err)
-            Notify("Execution failed")
+            warn(err)
+            Notify("Client execution failed")
         end
-    else
-        if Remote and Remote:IsA("RemoteEvent") then
-            Remote:FireServer(command)
-            Notify("Server command sent")
-        else
-            Notify("ServerSide unavailable")
-        end
+
+        return
     end
+
+    if not State.ServerAvailable then
+        Notify("Server unavailable")
+        return
+    end
+
+    if not State.Authorized then
+        Notify("Server access not granted")
+        return
+    end
+
+    if not State.Remote then
+        Notify("Remote disconnected")
+        return
+    end
+
+    State.Remote:FireServer({
+        Action = "ExecuteCommand",
+        Command = command
+    })
+
+    Notify("Server command sent")
 end)
 
-Clear.MouseButton1Click:Connect(function()
+-- MODE
+
+ModeButton.MouseButton1Click:Connect(function()
+    State.Mode = State.Mode == "Client" and "Server" or "Client"
+
+    ModeButton.Text = string.upper(State.Mode)
+
+    Notify(State.Mode .. " mode activated")
+end)
+
+-- CLEAR / COPY
+
+ClearButton.MouseButton1Click:Connect(function()
     Editor.Text = ""
     Notify("Editor cleared")
 end)
 
-Copy.MouseButton1Click:Connect(function()
-    -- Standard Roblox scripts cannot write to
-    -- the operating system clipboard.
+CopyButton.MouseButton1Click:Connect(function()
     Editor:CaptureFocus()
-    Notify("Select the text to copy")
+    Notify("Select text to copy")
 end)
 
-local function CloseGUI()
-    local tween = TweenService:Create(
-        Main,
-        TweenInfo.new(0.2),
-        {
-            Size = UDim2.fromOffset(0, 0)
-        }
-    )
+-- CLOSE
 
-    tween:Play()
-    tween.Completed:Wait()
+CloseButton.MouseButton1Click:Connect(function()
+    if ConnectedRemote then
+        ConnectedRemote:Disconnect()
+    end
+
     GUI:Destroy()
-end
+end)
 
-Close.MouseButton1Click:Connect(CloseGUI)
-XButton.MouseButton1Click:Connect(CloseGUI)
-
--- Dragging
+-- MOBILE / PC DRAGGING
 
 local Dragging = false
 local DragStart
@@ -380,13 +598,39 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-local TargetSize = Main.Size
+-- RESPONSIVE SIZE
+
+local camera = workspace.CurrentCamera
+
+local function Resize()
+    local viewport = camera.ViewportSize
+
+    Main.Size = UDim2.fromOffset(
+        math.min(560, viewport.X - 20),
+        math.min(430, viewport.Y - 30)
+    )
+end
+
+Resize()
+
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(Resize)
+
+-- STARTUP
+
+local targetSize = Main.Size
 Main.Size = UDim2.fromOffset(0, 0)
 
 TweenService:Create(
     Main,
     TweenInfo.new(0.35, Enum.EasingStyle.Back),
-    {Size = TargetSize}
+    {Size = targetSize}
 ):Play()
 
-Notify("Universal SS Hub Loaded")
+task.delay(1, function()
+    if GUI.Parent then
+        ScanServer()
+        ConnectResponses()
+    end
+end)
+
+Notify("Universal SS Hub v2.0 Loaded")
