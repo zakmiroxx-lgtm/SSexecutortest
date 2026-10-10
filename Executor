@@ -1,0 +1,392 @@
+--[[
+    UNIVERSAL SS HUB
+    Version 1.0
+    Single-file Client
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local RemoteFolder = ReplicatedStorage:FindFirstChild("UniversalSS")
+local Remote = RemoteFolder and RemoteFolder:FindFirstChild("ExecuteRemote")
+
+local Old = PlayerGui:FindFirstChild("UniversalSSHub")
+
+if Old then
+    Old:Destroy()
+end
+
+local Colors = {
+    Background = Color3.fromRGB(15, 15, 22),
+    Secondary = Color3.fromRGB(25, 25, 36),
+    Accent = Color3.fromRGB(135, 85, 255),
+    Text = Color3.fromRGB(240, 240, 255),
+    Muted = Color3.fromRGB(150, 150, 170)
+}
+
+local Mode = "Client"
+
+local GUI = Instance.new("ScreenGui")
+GUI.Name = "UniversalSSHub"
+GUI.ResetOnSpawn = false
+GUI.IgnoreGuiInset = true
+GUI.Parent = PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(550, 380)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Position = UDim2.fromScale(0.5, 0.5)
+Main.BackgroundColor3 = Colors.Background
+Main.BorderSizePixel = 0
+Main.Parent = GUI
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Colors.Accent
+Stroke.Transparency = 0.5
+Stroke.Parent = Main
+
+local Constraint = Instance.new("UISizeConstraint")
+Constraint.MinSize = Vector2.new(260, 240)
+Constraint.MaxSize = Vector2.new(550, 380)
+Constraint.Parent = Main
+
+local function Resize()
+    local viewport = workspace.CurrentCamera.ViewportSize
+
+    Main.Size = UDim2.fromOffset(
+        math.min(550, viewport.X - 20),
+        math.min(380, viewport.Y - 40)
+    )
+end
+
+Resize()
+
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(Resize)
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundTransparency = 1
+Header.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -160, 1, 0)
+Title.Position = UDim2.fromOffset(15, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "UNIVERSAL SS HUB"
+Title.TextColor3 = Colors.Text
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local function Button(parent, text, position, size, color)
+    local b = Instance.new("TextButton")
+
+    b.Size = size
+    b.Position = position
+    b.BackgroundColor3 = color
+    b.Text = text
+    b.TextColor3 = Colors.Text
+    b.TextSize = 13
+    b.Font = Enum.Font.GothamBold
+    b.BorderSizePixel = 0
+    b.Parent = parent
+
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+
+    b.MouseEnter:Connect(function()
+        TweenService:Create(
+            b,
+            TweenInfo.new(0.15),
+            {BackgroundTransparency = 0.2}
+        ):Play()
+    end)
+
+    b.MouseLeave:Connect(function()
+        TweenService:Create(
+            b,
+            TweenInfo.new(0.15),
+            {BackgroundTransparency = 0}
+        ):Play()
+    end)
+
+    return b
+end
+
+local ModeButton = Button(
+    Header,
+    "CLIENT",
+    UDim2.new(1, -145, 0, 9),
+    UDim2.fromOffset(90, 30),
+    Colors.Secondary
+)
+
+local XButton = Button(
+    Header,
+    "X",
+    UDim2.new(1, -45, 0, 9),
+    UDim2.fromOffset(32, 30),
+    Color3.fromRGB(180, 55, 75)
+)
+
+local EditorFrame = Instance.new("Frame")
+EditorFrame.Size = UDim2.new(1, -30, 1, -125)
+EditorFrame.Position = UDim2.fromOffset(15, 55)
+EditorFrame.BackgroundColor3 = Colors.Secondary
+EditorFrame.BorderSizePixel = 0
+EditorFrame.Parent = Main
+
+Instance.new("UICorner", EditorFrame).CornerRadius = UDim.new(0, 10)
+
+local Editor = Instance.new("TextBox")
+Editor.Name = "Editor"
+Editor.Size = UDim2.new(1, -20, 1, -20)
+Editor.Position = UDim2.fromOffset(10, 10)
+Editor.BackgroundTransparency = 1
+Editor.Text = "-- Universal SS Hub\n-- Commands: heal, speed, normal, jump"
+Editor.TextColor3 = Colors.Text
+Editor.PlaceholderText = "Enter a test command..."
+Editor.PlaceholderColor3 = Colors.Muted
+Editor.Font = Enum.Font.Code
+Editor.TextSize = 14
+Editor.TextXAlignment = Enum.TextXAlignment.Left
+Editor.TextYAlignment = Enum.TextYAlignment.Top
+Editor.MultiLine = true
+Editor.ClearTextOnFocus = false
+Editor.TextWrapped = false
+Editor.Parent = EditorFrame
+
+local Execute = Button(
+    Main,
+    "EXECUTE",
+    UDim2.new(0.025, 0, 1, -53),
+    UDim2.new(0.235, 0, 0, 38),
+    Colors.Accent
+)
+
+local Clear = Button(
+    Main,
+    "CLEAR",
+    UDim2.new(0.27, 0, 1, -53),
+    UDim2.new(0.235, 0, 0, 38),
+    Colors.Secondary
+)
+
+local Copy = Button(
+    Main,
+    "COPY",
+    UDim2.new(0.515, 0, 1, -53),
+    UDim2.new(0.235, 0, 0, 38),
+    Colors.Secondary
+)
+
+local Close = Button(
+    Main,
+    "CLOSE",
+    UDim2.new(0.76, 0, 1, -53),
+    UDim2.new(0.215, 0, 0, 38),
+    Color3.fromRGB(135, 45, 65)
+)
+
+local function Notify(message)
+    local Label = Instance.new("TextLabel")
+
+    Label.Size = UDim2.new(0.8, 0, 0, 32)
+    Label.AnchorPoint = Vector2.new(0.5, 0)
+    Label.Position = UDim2.new(0.5, 0, 0, 8)
+    Label.BackgroundColor3 = Colors.Accent
+    Label.Text = message
+    Label.TextColor3 = Colors.Text
+    Label.Font = Enum.Font.Gotham
+    Label.TextSize = 12
+    Label.ZIndex = 10
+    Label.Parent = Main
+
+    Instance.new("UICorner", Label).CornerRadius = UDim.new(0, 8)
+
+    task.delay(2, function()
+        if Label.Parent then
+            TweenService:Create(
+                Label,
+                TweenInfo.new(0.25),
+                {
+                    BackgroundTransparency = 1,
+                    TextTransparency = 1
+                }
+            ):Play()
+
+            task.wait(0.25)
+            Label:Destroy()
+        end
+    end)
+end
+
+ModeButton.MouseButton1Click:Connect(function()
+    Mode = Mode == "Client" and "Server" or "Client"
+    ModeButton.Text = string.upper(Mode)
+    Notify(Mode .. " mode")
+end)
+
+local ClientCommands = {}
+
+ClientCommands.heal = function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.Health = humanoid.MaxHealth
+    end
+end
+
+ClientCommands.speed = function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.WalkSpeed = 32
+    end
+end
+
+ClientCommands.normal = function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.WalkSpeed = 16
+    end
+end
+
+ClientCommands.jump = function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.UseJumpPower = true
+        humanoid.JumpPower = 100
+    end
+end
+
+Execute.MouseButton1Click:Connect(function()
+    local command = Editor.Text:match("^%s*(.-)%s*$")
+
+    if command == "" then
+        Notify("Editor is empty")
+        return
+    end
+
+    if Mode == "Client" then
+        local action = ClientCommands[command]
+
+        if not action then
+            Notify("Unknown client command")
+            return
+        end
+
+        local success, err = pcall(action)
+
+        if success then
+            Notify("Client command executed")
+        else
+            warn("[Universal SS]", err)
+            Notify("Execution failed")
+        end
+    else
+        if Remote and Remote:IsA("RemoteEvent") then
+            Remote:FireServer(command)
+            Notify("Server command sent")
+        else
+            Notify("ServerSide unavailable")
+        end
+    end
+end)
+
+Clear.MouseButton1Click:Connect(function()
+    Editor.Text = ""
+    Notify("Editor cleared")
+end)
+
+Copy.MouseButton1Click:Connect(function()
+    -- Standard Roblox scripts cannot write to
+    -- the operating system clipboard.
+    Editor:CaptureFocus()
+    Notify("Select the text to copy")
+end)
+
+local function CloseGUI()
+    local tween = TweenService:Create(
+        Main,
+        TweenInfo.new(0.2),
+        {
+            Size = UDim2.fromOffset(0, 0)
+        }
+    )
+
+    tween:Play()
+    tween.Completed:Wait()
+    GUI:Destroy()
+end
+
+Close.MouseButton1Click:Connect(CloseGUI)
+XButton.MouseButton1Click:Connect(CloseGUI)
+
+-- Dragging
+
+local Dragging = false
+local DragStart
+local StartPosition
+local DragInput
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        Dragging = true
+        DragStart = input.Position
+        StartPosition = Main.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                Dragging = false
+            end
+        end)
+    end
+end)
+
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        DragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if Dragging and input == DragInput then
+        local delta = input.Position - DragStart
+
+        Main.Position = UDim2.new(
+            StartPosition.X.Scale,
+            StartPosition.X.Offset + delta.X,
+            StartPosition.Y.Scale,
+            StartPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+local TargetSize = Main.Size
+Main.Size = UDim2.fromOffset(0, 0)
+
+TweenService:Create(
+    Main,
+    TweenInfo.new(0.35, Enum.EasingStyle.Back),
+    {Size = TargetSize}
+):Play()
+
+Notify("Universal SS Hub Loaded")
